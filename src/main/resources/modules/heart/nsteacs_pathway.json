@@ -171,7 +171,7 @@
         "high": 90,
         "unit": "minutes"
       },
-      "direct_transition": "Terminal",
+      "direct_transition": "History_of_PCI",
       "reason": "acs_variant"
     },
     "Hospital_Admission": {
@@ -277,6 +277,21 @@
           "transition": "Terminal",
           "distribution": 0.1
         }
+      ]
+    },
+    "History_of_PCI": {
+      "type": "ConditionOnset",
+      "assign_to_attribute": "pci_history",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": 405741001,
+          "display": "History of percutaneous coronary intervention (situation)"
+        }
+      ],
+      "direct_transition": "Terminal",
+      "remarks": [
+        "Store attribute indicating the patient had a PCI procedure"
       ]
     }
   }
