@@ -187,9 +187,13 @@ public abstract class State implements Cloneable, Serializable {
       // to indicate when the state actually completed.
       if (this instanceof Delayable) {
         this.exited = ((Delayable)this).next;
+      } else if (this instanceof CallSubmodule) {
+        this.exited = ((CallSubmodule)this).submoduleExited;
       } else {
         this.exited = time;
       }
+    } else if (this instanceof Terminal) {
+      this.exited = time;
     }
 
     return exit;
@@ -233,6 +237,7 @@ public abstract class State implements Cloneable, Serializable {
    */
   public static class CallSubmodule extends State {
     private String submodule;
+    private transient long submoduleExited;
 
     @Override
     public CallSubmodule clone() {
@@ -252,6 +257,14 @@ public abstract class State implements Cloneable, Serializable {
       boolean completed = submod.process(person, time);
 
       if (completed) {
+        // keep track of when the submodule exited, in case it was "rewinding time" when it completed
+        if (person.history.get(0).exited == null) {
+          // temporary hack. figure out why we need this for the unit tests
+          this.submoduleExited = time;
+        } else {
+          this.submoduleExited = person.history.get(0).exited;
+        }
+        
         // add the history from the submodule to this module's history, at the front
         moduleHistory.addAll(0, person.history);
         // clear the submodule history
