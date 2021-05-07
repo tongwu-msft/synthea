@@ -12,7 +12,7 @@ import java.io.FilenameFilter;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.lang.reflect.Type;
-
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -70,6 +70,8 @@ public class Generator implements RandomNumberGenerator {
   private boolean onlyAlivePatients;
   private boolean onlyDeadPatients;
   private boolean onlyVeterans;
+  private Module keepPatientsModule;
+  private Long maxAttemptsToKeepPatient;
   public TransitionMetrics metrics;
   public static String DEFAULT_STATE = "Massachusetts";
   private Exporter.ExporterRuntimeOptions exporterRuntimeOptions;
@@ -124,6 +126,8 @@ public class Generator implements RandomNumberGenerator {
      *  value of -1 will evolve the population to the current system time.
      */
     public int daysToTravelForward = -1;
+    /** Path to a module defining which patients should be kept and exported. */
+    public File keepPatientsModulePath;
     /** Reference Time when to start Synthea. By default equal to the current system time. */
     public long referenceTime = seed;
   }
@@ -213,10 +217,31 @@ public class Generator implements RandomNumberGenerator {
       this.onlyAlivePatients = false;
     }
 
+    try {
+      this.maxAttemptsToKeepPatient = Long.parseLong(
+        Config.get("generate.max_attempts_to_keep_patient", "1000"));
+
+      if (this.maxAttemptsToKeepPatient == 0) {
+        // set it to null to make the check more clear
+        this.maxAttemptsToKeepPatient = null;
+      }
+    } catch (Exception e) {
+      this.maxAttemptsToKeepPatient = null;
+    }
+
     this.onlyVeterans = Config.getAsBoolean("generate.veteran_population_override");
     this.totalGeneratedPopulation = new AtomicInteger(0);
     this.stats = Collections.synchronizedMap(new HashMap<String, AtomicInteger>());
     this.modulePredicate = getModulePredicate();
+
+    if (options.keepPatientsModulePath != null) {
+      try {
+        Path path = options.keepPatientsModulePath.toPath().toAbsolutePath();
+        this.keepPatientsModule = Module.loadFile(path, false, null, true);
+      } catch (Exception e) {
+        throw new ExceptionInInitializerError(e);
+      }
+    }
 
     stats.put("alive", new AtomicInteger(0));
     stats.put("dead", new AtomicInteger(0));
@@ -418,7 +443,6 @@ public class Generator implements RandomNumberGenerator {
     Person person = null;
     
     try {
-      boolean isAlive = true;
       int tryNumber = 0; // Number of tries to create these demographics
       Random randomForDemographics = new Random(personSeed);
 
@@ -428,56 +452,48 @@ public class Generator implements RandomNumberGenerator {
         demoAttributes = pickFixedDemographics(index, random);
       }
 
-      int providerCount = 0;
-      int providerMinimum = 1;
+      boolean patientMeetsCriteria;
 
-      if (this.recordGroups != null) {
-        // If fixed records are used, there must be 1 provider for each of this person's records.
-        FixedRecordGroup recordGroup = this.recordGroups.get(index);
-        providerMinimum = recordGroup.count;
-      }
-      
       do {
+        tryNumber++;
         person = createPerson(personSeed, demoAttributes);
         long finishTime = person.lastUpdated + timestep;
 
-        isAlive = person.alive(finishTime);
-        providerCount = person.providerCount();
+        boolean isAlive = person.alive(finishTime);
 
-        if (isAlive && onlyDeadPatients) {
-          // rotate the seed so the next attempt gets a consistent but different one
-          personSeed = randomForDemographics.nextLong();
-          continue;
-          // skip the other stuff if the patient is alive and we only want dead patients
-          // note that this skips ahead to the while check and doesn't automatically re-loop
-        }
+        patientMeetsCriteria = 
+            patientMeetsCriteria(person, finishTime, index, isAlive);
 
-        if (!isAlive && onlyAlivePatients) {
-          // rotate the seed so the next attempt gets a consistent but different one
-          personSeed = randomForDemographics.nextLong();
-          continue;
-          // skip the other stuff if the patient is dead and we only want alive patients
-          // note that this skips ahead to the while check and doesn't automatically re-loop
-        }
-
-        // For fixed records, the person must have 1 provider per record.
-        if (providerCount < providerMinimum) {
-          // rotate the seed so the next attempt gets a consistent but different one
-          personSeed = new Random(personSeed).nextLong();
-          tryNumber++;
-          if (tryNumber > 10) {
-            System.out.println("Couldn't get enough providers for "
-                + person.attributes.get(Person.FIRST_NAME) + " "
-                + person.attributes.get(Person.LAST_NAME));
+        if (!patientMeetsCriteria) {
+          if (this.maxAttemptsToKeepPatient != null
+              && tryNumber >= this.maxAttemptsToKeepPatient) {
+            // we've tried and failed to produce a patient that meets the criteria
+            // throw an exception to halt processing in this slot
+            String msg = "Failed to produce a matching patient after " 
+                + tryNumber + " attempts. "
+                + "Ensure that it is possible for all "
+                + "requested demographics to meet the criteria. "
+                + "(e.g., make sure there is no age restriction "
+                + "that conflicts with a requested condition, "
+                + "such as limiting age to 0-18 and requiring "
+                + "all patients have a condition that only onsets after 55.) "
+                + "If you are confident that the constraints"
+                + " are possible to satisfy but rare, "
+                + "consider increasing the value in config setting "
+                + "`generate.max_attempts_to_keep_patient`";
+            throw new RuntimeException(msg);
           }
+
+          // rotate the seed so the next attempt gets a consistent but different one
+          personSeed = randomForDemographics.nextLong();
           continue;
-          // skip the other stuff if the patient has less providers than the minimum
-          // note that this skips ahead to the while check and doesn't automatically re-loop
+          // skip the other stuff if the patient doesn't meet our goals
+          // note that this skips ahead to the while check
+          // also note, this may run forever if the requested criteria are impossible to meet
         }
 
         recordPerson(person, index);
 
-        tryNumber++;
         if (!isAlive) {
           // rotate the seed so the next attempt gets a consistent but different one
           personSeed = randomForDemographics.nextLong();
@@ -500,7 +516,7 @@ public class Generator implements RandomNumberGenerator {
         // TODO - export is DESTRUCTIVE when it filters out data
         // this means export must be the LAST THING done with the person
         Exporter.export(person, finishTime, exporterRuntimeOptions);
-      } while (!patientMeetsCriteria(isAlive, providerCount, providerMinimum));
+      } while (!patientMeetsCriteria);
       //repeat while patient doesn't meet criteria
       // if the patient is alive and we want only dead ones => loop & try again
       //  (and dont even export, see above)
@@ -519,12 +535,13 @@ public class Generator implements RandomNumberGenerator {
   /**
    * Determines if a patient meets the requested criteria.
    * If a patient does not meet the criteria the process will be repeated so a new one is generated
+   * @param person the patient to check if we want to export them
+   * @param finishTime the time simulation finished
+   * @param index Target index in the whole set of people to generate 
    * @param isAlive Whether the patient is alive at end of simulation.
-   * @param providerCount Number of providers in the patient's record
-   * @param providerMinimum Minimum number of providers required
    * @return true if patient meets criteria, false otherwise
    */
-  public boolean patientMeetsCriteria(boolean isAlive, int providerCount, int providerMinimum) {
+  public boolean patientMeetsCriteria(Person person, long finishTime, int index, boolean isAlive) {
     if (!isAlive && !onlyDeadPatients && this.options.overflow) { 
       // if patient is not alive and the criteria isn't dead patients new patient is needed
       return false;
@@ -540,9 +557,24 @@ public class Generator implements RandomNumberGenerator {
       return false;
     }
 
+    int providerCount = person.providerCount();
+    int providerMinimum = 1;
+
+    if (this.recordGroups != null) {
+      // If fixed records are used, there must be 1 provider for each of this person's records.
+      FixedRecordGroup recordGroup = this.recordGroups.get(index);
+      providerMinimum = recordGroup.count;
+    }
+
     if (providerCount < providerMinimum) {
       // if provider count less than provider min new patient is needed
       return false;
+    }
+
+    if (this.keepPatientsModule != null) {
+      this.keepPatientsModule.process(person, finishTime, false);
+      State terminal = person.history.get(0);
+      return terminal.name.equals("Keep");
     }
 
     return true;
