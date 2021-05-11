@@ -8,6 +8,7 @@ import org.mitre.synthea.helpers.SimpleCSV;
 import org.mitre.synthea.world.agents.Person;
 import org.mitre.synthea.world.concepts.HealthRecord;
 import org.mitre.synthea.world.concepts.HealthRecord.Observation;
+import org.springframework.util.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,20 +47,59 @@ public class AutoObservationGenerator {
             long startTime = TimeUnit.SECONDS.toMillis(seconds) + time;
             Observation newObservation = record.createEmptyObservation(time, startTime, null, null);
 
-            newObservation.observations.add(GetDiastolicBloodPresure(record, time, startTime, input));
+            Observation properties = getDiastolicBloodPresure(record, time, startTime, input);
+            if (properties != null) {
+                newObservation.observations.add(properties);
+            }
+
+            properties = getSystolicBloodPresure(record, time, startTime, input);
+            if (properties != null) {
+                newObservation.observations.add(properties);
+            }
 
             result.add(newObservation);
         }
         return result;
     }
 
-    private static Observation GetDiastolicBloodPresure (HealthRecord record, long time, long startTime, LinkedHashMap<String, String> input) {
+    private static Observation getDiastolicBloodPresure (HealthRecord record, long time, long startTime, LinkedHashMap<String, String> input) {
+        if (!input.containsKey("Diastolic blood pressure")) {
+            return null;
+        }
+
+        String content = input.get("Diastolic blood pressure");
+
+        if (StringUtils.isEmpty(content)) {
+            return null;
+        }
+
         Observation observation = record.createEmptyObservation(time, startTime, null, null);
-        float bloodPressure = Float.parseFloat((input.get("Diastolic blood pressure")));
+        float bloodPressure = Float.parseFloat(content);
 
         observation.value = bloodPressure;
         observation.unit = "mmHg";
         observation.codes.add(new HealthRecord.Code("http://loinc.org", "8462-4", "Diastolic blood pressure"));
+
+        return observation;
+    }
+
+    private static Observation getSystolicBloodPresure (HealthRecord record, long time, long startTime, LinkedHashMap<String, String> input) {
+        if (!input.containsKey("Systolic blood pressure")) {
+            return null;
+        }
+
+        String content = input.get("Systolic blood pressure");
+
+        if (StringUtils.isEmpty(content)) {
+            return null;
+        }
+
+        Observation observation = record.createEmptyObservation(time, startTime, null, null);
+        float bloodPressure = Float.parseFloat(content);
+
+        observation.value = bloodPressure;
+        observation.unit = "mmHg";
+        observation.codes.add(new HealthRecord.Code("http://loinc.org", "8480-6", "Systolic blood pressure"));
 
         return observation;
     }
