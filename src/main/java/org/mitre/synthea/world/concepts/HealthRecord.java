@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang3.tuple.Triple;
 import org.mitre.synthea.helpers.RandomNumberGenerator;
 import org.mitre.synthea.helpers.Utilities;
 import org.mitre.synthea.world.agents.Clinician;
@@ -974,6 +975,13 @@ public class HealthRecord implements Serializable {
     encounter.reports.add(report);
     observations.forEach(o -> o.report = report);
     return report;
+  }
+
+  public Observation createEmptyObservation(long encounterTime, long obsTime, String type, Object value) {
+    Encounter encounter = currentEncounter(encounterTime);
+    List<Observation> observations = new ArrayList<Observation>();
+
+    return new Observation(obsTime, type, value);
   }
 
   /**
