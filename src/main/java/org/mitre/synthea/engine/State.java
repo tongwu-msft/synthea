@@ -937,7 +937,7 @@ public abstract class State implements Cloneable, Serializable {
       if (encounter != null) {
         EncounterType type = EncounterType.fromString(encounter.type);
         if (type != EncounterType.WELLNESS) {
-          person.record.encounterEnd(time, type);
+          person.record.encounterEnd(time, type, person.useTimeSeriesData);
         }
         encounter.discharge = dischargeDisposition;
       }

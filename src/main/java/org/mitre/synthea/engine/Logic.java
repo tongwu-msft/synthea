@@ -241,6 +241,9 @@ public abstract class Logic implements Serializable {
           return false;
         }
       }
+
+      return true;
+      /* ToDo: Uncomment here. Just want to skip validating codes now.
       if (valueCode != null) {
         value = valueCode;
       } 
@@ -260,6 +263,7 @@ public abstract class Logic implements Serializable {
       } else {
         return Utilities.compare(observation.value, this.value, operator);
       }
+      */
     }
   }
   

@@ -21,9 +21,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.sql.Timestamp;    
+import java.util.Date;    
 
 public class AutoObservationGenerator {
-    private static String fixedDataPath = "C:\\Users\\tongwu\\Downloads\\demo\\demo\\gen\\samples";
+    // ToDo: change to a configurable path. Please contact us if you need these samples.
+    private static String fixedDataPath = "C:\\Users\\yufei.FAREAST\\Downloads\\demo\\demo\\gen";
 
     private static String[] sampleFiles = null;
     private static String[] getSampleFiles() {
@@ -37,29 +40,39 @@ public class AutoObservationGenerator {
     public static List<Observation> generateObservations(HealthRecord record, long time, int seed) throws IOException {
         List<Observation> result = new LinkedList<>();
         String[] sampleFiles = getSampleFiles();
-
+        System.out.println(time);
         String observationsFile = sampleFiles[seed % sampleFiles.length];
         String inputDataString = readFile(Paths.get(fixedDataPath, observationsFile).toString(), StandardCharsets.UTF_8);
         List<LinkedHashMap<String, String>> inputData = SimpleCSV.parse(inputDataString);
 
+        System.out.println("Generating observations for Blood Pressure:");
         for (LinkedHashMap<String, String> input : inputData) {
             long seconds = (long)(Float.parseFloat(input.get("Hours")) * 60 * 60);
             long startTime = TimeUnit.SECONDS.toMillis(seconds) + time;
             Observation newObservation = record.createEmptyObservation(time, startTime, null, null);
-
+            newObservation.category = "vital-signs";
             Observation properties = getDiastolicBloodPresure(record, time, startTime, input);
             if (properties != null) {
                 newObservation.observations.add(properties);
+                System.out.println("Generating Diastolic Blood Pressure:\tTime: " + GetTimeRepresentation(startTime) + " \tValue: " + String.format("%.2f", properties.value) + "\tUnit: " + properties.unit);
             }
 
             properties = getSystolicBloodPresure(record, time, startTime, input);
             if (properties != null) {
                 newObservation.observations.add(properties);
+                System.out.println("Generating Systolic Blood Pressure:\tTime: " + GetTimeRepresentation(startTime) + " \tValue: " + String.format("%.2f", properties.value) + "\tUnit: " + properties.unit);
             }
 
+            newObservation.codes.add(new HealthRecord.Code("LOINC", "85354-9", "Blood Pressure"));
             result.add(newObservation);
         }
         return result;
+    }
+
+    private static String GetTimeRepresentation(long time)
+    {
+        Timestamp ts=new Timestamp(time);
+        return new Date(ts.getTime()).toString();
     }
 
     private static Observation getDiastolicBloodPresure (HealthRecord record, long time, long startTime, LinkedHashMap<String, String> input) {
@@ -78,7 +91,8 @@ public class AutoObservationGenerator {
 
         observation.value = bloodPressure;
         observation.unit = "mmHg";
-        observation.codes.add(new HealthRecord.Code("http://loinc.org", "8462-4", "Diastolic blood pressure"));
+        observation.category = "vital-signs";
+        observation.codes.add(new HealthRecord.Code("LOINC", "8462-4", "Diastolic blood pressure"));
 
         return observation;
     }
@@ -99,7 +113,8 @@ public class AutoObservationGenerator {
 
         observation.value = bloodPressure;
         observation.unit = "mmHg";
-        observation.codes.add(new HealthRecord.Code("http://loinc.org", "8480-6", "Systolic blood pressure"));
+        observation.category = "vital-signs";
+        observation.codes.add(new HealthRecord.Code("LOINC", "8480-6", "Systolic blood pressure"));
 
         return observation;
     }

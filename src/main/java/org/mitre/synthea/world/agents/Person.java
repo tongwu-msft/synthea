@@ -99,6 +99,7 @@ public class Person implements Serializable, RandomNumberGenerator, QuadTreeElem
   private final Random random;
   public final long seed;
   public long populationSeed;
+  public boolean useTimeSeriesData;
   /** 
    * Tracks the last time that the person was updated over a serialize/deserialize.
    */

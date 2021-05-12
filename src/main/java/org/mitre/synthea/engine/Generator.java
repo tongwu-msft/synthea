@@ -105,6 +105,7 @@ public class Generator implements RandomNumberGenerator {
     public String gender;
     /** Age range applies. */
     public boolean ageSpecified = false;
+    public boolean useTimeSeriesData = false;
     /** Minimum age of people to be generated. Defaults to zero. */
     public int minAge = 0;
     /** Maximum age of people to be generated. Defaults to 140. */
@@ -568,6 +569,7 @@ public class Generator implements RandomNumberGenerator {
    */
   public Person createPerson(long personSeed, Map<String, Object> demoAttributes) {
     Person person = new Person(personSeed);
+    person.useTimeSeriesData = this.options.useTimeSeriesData;
     person.populationSeed = this.options.seed;
     person.attributes.putAll(demoAttributes);
     person.attributes.put(Person.LOCATION, location);

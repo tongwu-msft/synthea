@@ -802,7 +802,7 @@ public final class CardiovascularDiseaseModule extends Module {
       Encounter encounter = (Encounter) person.attributes.get(CVD_ENCOUNTER);
       EncounterType type = EncounterType.fromString(encounter.type);
       if (type == EncounterType.EMERGENCY) {
-        person.record.encounterEnd(time, type);
+        person.record.encounterEnd(time, type, person.useTimeSeriesData);
       }
       person.attributes.remove(CVD_ENCOUNTER);
     }

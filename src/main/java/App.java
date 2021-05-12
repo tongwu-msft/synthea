@@ -32,13 +32,15 @@ public class App {
     System.out.println("         [-u updatedPopulationSnapshotPath]");
     System.out.println("         [-t updateTimePeriodInDays]");
     System.out.println("         [-f fixedRecordPath]");
+    System.out.println("         [-ts generateTimeSeriesData]");
     System.out.println("         [--config* value]");
     System.out.println("          * any setting from src/main/resources/synthea.properties");
     System.out.println("Examples:");
     System.out.println("run_synthea Massachusetts");
     System.out.println("run_synthea Alaska Juneau");
     System.out.println("run_synthea -s 12345");
-    System.out.println("run_synthea -p 1000)");
+    System.out.println("run_synthea -p 1000");
+    System.out.println("run_synthea -p 200 -ts true");
     System.out.println("run_synthea -s 987 Washington Seattle");
     System.out.println("run_synthea -s 21 -p 100 Utah \"Salt Lake City\"");
     System.out.println("run_synthea -g M -a 60-65");
@@ -73,6 +75,9 @@ public class App {
           } else if (currArg.equalsIgnoreCase("-cs")) {
             String value = argsQ.poll();
             options.clinicianSeed = Long.parseLong(value);
+          } else if (currArg.equalsIgnoreCase("-ts")) {
+            String value = argsQ.poll();
+            options.useTimeSeriesData = Boolean.parseBoolean(value);
           } else if (currArg.equalsIgnoreCase("-r")) {
             String value = argsQ.poll();
             SimpleDateFormat format = new SimpleDateFormat("YYYYMMDD");

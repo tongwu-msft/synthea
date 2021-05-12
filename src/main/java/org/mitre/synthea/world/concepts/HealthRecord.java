@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.tuple.Triple;
 import org.mitre.synthea.helpers.RandomNumberGenerator;
 import org.mitre.synthea.helpers.Utilities;
+import org.mitre.synthea.modules.AutoObservationGenerator;
 import org.mitre.synthea.world.agents.Clinician;
 import org.mitre.synthea.world.agents.Person;
 import org.mitre.synthea.world.agents.Provider;
@@ -997,13 +998,18 @@ public class HealthRecord implements Serializable {
     return encounter;
   }
 
+  public void encounterEnd(long time, EncounterType type)
+  {
+    encounterEnd(time, type, false);
+  }
+
   /**
    * Ends an encounter.
    *
    * @param time the end time of the encounter.
    * @param type the type of the encounter.
    */
-  public void encounterEnd(long time, EncounterType type) {
+  public void encounterEnd(long time, EncounterType type, boolean useTimeSeriesData) {
 
     for (int i = encounters.size() - 1; i >= 0; i--) {
       Encounter encounter = encounters.get(i);
@@ -1014,6 +1020,19 @@ public class HealthRecord implements Serializable {
         if (time > encounter.stop) {
           encounter.stop = time;
         }
+
+        if (encounter.observations.size() > 0 && useTimeSeriesData == true) {
+          String code = encounter.observations.get(0).type;
+          try {
+            List<Observation> autoObservationList = AutoObservationGenerator.generateObservations(this, time, 1111);
+            encounter.observations.clear();
+            encounter.observations.addAll(autoObservationList);  
+          }
+          catch (IOException ioEx) {
+            System.out.println("Auto generate observation failed. IOException.");
+          }
+        }
+
         // Update Costs/Claim infomation.
         encounter.determineCost();
         encounter.claim.assignCosts();
